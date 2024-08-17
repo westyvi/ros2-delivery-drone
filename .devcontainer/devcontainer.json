@@ -1,18 +1,30 @@
+
 {
-    "name": "ROS2 Jazzy Development",
-    "dockerFile": "./Dockerfile",
-    "customizations": {
-      "vscode": {
-        "extensions": [
-          "ms-vscode.cpptools",
-          "twxs.cmake",
-          "ms-vscode.cmake-tools",
-          "cschlosser.doxdocgen",
-          "ms-python.python",
-          "ms-python.vscode-pylance",
-          "ms-python.black-formatter",
-          "ms-iot.vscode-ros"
-        ]
-      }
-    }
-  }
+  "name": "ROS2 Dev Container",
+  "build": {
+      "dockerfile": "Dockerfile",
+      "context": ".."
+  },
+  //"runArgs": ["--network=host"],
+  "customizations": {
+    "settings": {
+      "terminal.integrated.shell.linux": "/bin/bash"
+    },
+    "extensions": [
+      "ms-azuretools.vscode-docker",
+      //c++ tools
+      "ms-vscode.cpptools",
+      "twxs.cmake",
+      "ms-vscode.cmake-tools",
+      "cschlosser.doxdocgen",
+      //python tools
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "ms-python.black-formatter",
+      //ros tools
+      "ms-iot.vscode-ros"
+    ],
+  },
+  //"mounts": ["source=${localWorkspaceFolder}/workspace,target=/workspace,type=bind"],
+  "remoteUser": "root"
+}
