@@ -13,14 +13,22 @@ find_package(rclpy REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Python3 REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
-# add executables
+# include directories
+include_directories(
+  include 
+  ${cv_bridge_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+)
+
+# add cpp executables
 add_executable(video_capture_node src/video_capture_node.cpp)
-ament_target_dependencies(video_capture_node rclcpp cv_bridge)
+ament_target_dependencies(video_capture_node rclcpp sensor_msgs cv_bridge)
 target_link_libraries(video_capture_node ${OpenCV_LIBRARIES})
 
 add_executable(video_display_node src/video_display_node.cpp)
-ament_target_dependencies(video_display_node rclcpp cv_bridge)
+ament_target_dependencies(video_display_node rclcpp sensor_msgs cv_bridge)
 target_link_libraries(video_display_node ${OpenCV_LIBRARIES})
 
 # Install cpp executables 
@@ -28,6 +36,25 @@ install(TARGETS
   video_capture_node
   video_display_node
   DESTINATION lib/${PROJECT_NAME}
+)
+
+## python nodes
+ament_python_install_package(${PROJECT_NAME})
+
+install(PROGRAMS
+  hand_detection/hand_tracker_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY hand_detection/resources
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install launch files.
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
 )
 
 if(BUILD_TESTING)

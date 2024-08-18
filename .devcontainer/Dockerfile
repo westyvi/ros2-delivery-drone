@@ -1,11 +1,7 @@
 # Use the official ROS 2 Jazzy image as the base
-FROM ros:jazzy
+FROM ros:jazzy-perception
 
 SHELL ["/bin/bash", "-c"]
-
-#ARG DEBIAN_FRONTEND=noninteractive
-#ARG USER_UID=1000
-#ARG USER_GID=1000
 
 # Install additional tools and dependencies
 RUN apt-get update && apt-get install -y \
@@ -15,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     git \
     vim \
     bash-completion \
-    ros-jazzy-cv-bridge \
+    #ros-jazzy-vision-opencv \ unecessary with jazzy-perception image
     python-is-python3 \
     python3-dev \
     python3-tk \
@@ -29,10 +25,14 @@ RUN apt-get update && apt-get install -y \
     liblapack-dev \
     gfortran \
     # end matplotlib dependencies
+    
     # ping utility to test docker container internet connectivity
     iputils-ping \
+    
     && rm -rf /var/lib/apt/lists/* \
-    && ping -c 4 google.com
+    
+    # test internet connectivity
+    && ping -c 4 google.com 
 
 # Set up a virtual environment
 #RUN python3 -m venv /opt/venv
@@ -51,9 +51,10 @@ RUN pip install --no-cache-dir --upgrade pip
 #RUN pip install --user --no-cache-dir matplotlib
 RUN pip install --no-cache-dir numpy
 RUN pip install --no-cache-dir mediapipe
-
+RUN pip install --no-cache-dir catkin_pkg
 #RUN pip install --user --no-cache-dir matplotlib numpy mediapipe
-ENV PATH="home/developer/local/bin:${PATH}"
+
+#ENV PATH="home/developer/local/bin:${PATH}"
 
 # Set up the workspace
 WORKDIR /workspace

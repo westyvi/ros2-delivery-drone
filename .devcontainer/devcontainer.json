@@ -16,7 +16,8 @@
       "ms-vscode.cpptools",
       "twxs.cmake",
       "ms-vscode.cmake-tools",
-      "cschlosser.doxdocgen",
+      "twxs.cmake-language",
+      "twxs.cmake-tools",
       //python tools
       "ms-python.python",
       "ms-python.vscode-pylance",
@@ -25,6 +26,5 @@
       "ms-iot.vscode-ros"
     ],
   },
-  //"mounts": ["source=${localWorkspaceFolder}/workspace,target=/workspace,type=bind"],
   "remoteUser": "root"
 }
