@@ -29,11 +29,13 @@ class HandTrackerNode(Node):
         self.bool_publisher = self.create_publisher(Bool, '/openPalm_detection', 10)
         self.bridge = CvBridge()
         self.start_time = time.time() # FIXME does this actually match the ros time object so the first image is ~0s?
+        self.image_size = 480 # resize input image to this size (max dimension) if larger in either dimension
 
         # Create a HandLandmarker object.
         package_path = os.path.dirname(__file__)
         model_path = os.path.join(package_path, 'resources', 'hand_landmarker.task')
-        
+        # model_path = os.path.join(package_path, 'resources', 'hand_landmarker_lite.task') # optional faster model
+
         # livestream insertion 
         BaseOptions = mp.tasks.BaseOptions
         HandLandmarker = mp.tasks.vision.HandLandmarker
@@ -49,7 +51,8 @@ class HandTrackerNode(Node):
         # load input frame and convert to mediapipe image format
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+        frame_rgb_resized = self.resize_image_if_needed(frame_rgb)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb_resized)
         time_obj = msg.header.stamp
         timestamp = (time_obj.sec + time_obj.nanosec/1e9)
         timestamp_ms = (timestamp)*1e3
@@ -65,7 +68,12 @@ class HandTrackerNode(Node):
         self.img_publisher.publish(processed_frame_msg)
 
         # insert keypoints into numpy array for processing: assumes only one hand detected
-        if len(detection_result.hand_landmarks) >= 1: # at least one hand detected 
+        palm_open = self.is_palm_open(detection_result)
+
+        self.bool_publisher.publish(Bool(data=palm_open))
+
+    def is_palm_open(self, detection_result):
+        if len(detection_result.hand_landmarks) >= 1: # at least one hand detected
             keypoints = np.zeros((3,len(detection_result.hand_landmarks[0])))
             for i, keypoint in enumerate(detection_result.hand_landmarks[0]):
                 keypoints[:,i] = np.array([keypoint.x, keypoint.y, keypoint.z])
@@ -87,9 +95,18 @@ class HandTrackerNode(Node):
                 if val < finger_extended_cutoff:
                     palm_open = False
         else:
-            palm_open = False
+            palm_open = False # no hands detected
+        return palm_open
 
-        self.bool_publisher.publish(Bool(data=palm_open))
+    def resize_image_if_needed(self, frame):
+        height, width = frame.shape[:2]
+        max_dimension = self.image_size
+        if max(height, width) > max_dimension:
+            scale = max_dimension / max(height, width)
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            return cv2.resize(frame, (new_width, new_height))
+        return frame
 
 def main(args=None):
     rclpy.init(args=args)
