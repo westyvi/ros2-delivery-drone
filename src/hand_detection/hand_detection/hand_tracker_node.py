@@ -73,13 +73,13 @@ class HandTrackerNode(Node):
         self.bool_publisher.publish(Bool(data=palm_open))
 
     def is_palm_open(self, detection_result):
+        # keypoints are returned in (hand, keypoint, (x,y,z)) format
         if len(detection_result.hand_landmarks) >= 1: # at least one hand detected
             keypoints = np.zeros((3,len(detection_result.hand_landmarks[0])))
             for i, keypoint in enumerate(detection_result.hand_landmarks[0]):
                 keypoints[:,i] = np.array([keypoint.x, keypoint.y, keypoint.z])
 
             # see if fingertips extend some distance beyond palm
-            palm_open = True
             palm_indices = [5, 9, 13, 17] # indices of bases of fingers keypoints
             finger_indices = [8, 12, 16, 20] # indices of fingertip keypoints
             finger_extended_cutoff = 0.5
@@ -93,10 +93,10 @@ class HandTrackerNode(Node):
                 # val should be close, but slightly less than one, for fully extended finger in a fully open palm
                 val = np.inner(finger_vector, wrist2palm_vector)/np.inner(wrist2palm_vector, wrist2palm_vector)
                 if val < finger_extended_cutoff:
-                    palm_open = False
+                    return False
         else:
-            palm_open = False # no hands detected
-        return palm_open
+            return False
+        return True
 
     def resize_image_if_needed(self, frame):
         height, width = frame.shape[:2]
