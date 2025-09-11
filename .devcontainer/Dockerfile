@@ -6,56 +6,15 @@ SHELL ["/bin/bash", "-c"]
 # Install additional tools and dependencies
 RUN apt-get update && apt-get install -y \
     python3-pip \
-    python3-colcon-common-extensions \
-    python3-venv \
-    git \
-    vim \
-    bash-completion \
-    #ros-jazzy-vision-opencv \ unecessary with jazzy-perception image
-    python-is-python3 \
-    python3-dev \
-    python3-tk \
-    # install lots of dependencies for matplotlib
-    libfreetype6-dev \
-    libpng-dev \
-    libxft-dev \
-    libjpeg-dev \
-    zlib1g-dev \
-    libblas-dev \
-    liblapack-dev \
-    gfortran \
-    # end matplotlib dependencies
+    python3-venv \ 
+    && rm -rf /var/lib/apt/lists/*
     
-    # ping utility to test docker container internet connectivity
-    iputils-ping \
+# Create a directory for the virtual environment and set it up
+# system site packages gives venv access to system (jazzy) packages necessary for ros2
+RUN python3 -m venv --system-site-packages /opt/venv && \ 
+    source /opt/venv/bin/activate && \
+    python3 -m pip install mediapipe numpy
     
-    && rm -rf /var/lib/apt/lists/* \
-    
-    # test internet connectivity
-    && ping -c 4 google.com 
-
-# Set up a virtual environment
-#RUN python3 -m venv /opt/venv
-#ENV PATH="/opt/venv/bin:$PATH"
-#RUN mkdir -p ~/coclon_venv/src \ 
- #   cd ~/coclon_venv/src \
-  #  virtualenv -p python3 ./venv \ 
-   # source ./venv/bin/activate \
-    #touch ./venv/COLCON_IGNORE
-
-# Set up a virtual environment
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-RUN pip install --no-cache-dir --upgrade pip
-#RUN pip install --user --no-cache-dir matplotlib
-RUN pip install --no-cache-dir numpy
-RUN pip install --no-cache-dir mediapipe
-RUN pip install --no-cache-dir catkin_pkg
-#RUN pip install --user --no-cache-dir matplotlib numpy mediapipe
-
-#ENV PATH="home/developer/local/bin:${PATH}"
-
 # Set up the workspace
 WORKDIR /workspace
 
