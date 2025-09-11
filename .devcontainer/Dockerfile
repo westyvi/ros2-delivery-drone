@@ -7,6 +7,7 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-venv \ 
+    x11-apps \
     && rm -rf /var/lib/apt/lists/*
     
 # Create a directory for the virtual environment and set it up

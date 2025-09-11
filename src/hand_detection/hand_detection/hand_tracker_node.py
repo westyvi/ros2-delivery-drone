@@ -15,7 +15,6 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import numpy as np
 import os
-from builtin_interfaces.msg import Time # FIXME do I need this? What's it do?
 import time
 
 class HandTrackerNode(Node):
@@ -35,7 +34,7 @@ class HandTrackerNode(Node):
         package_path = os.path.dirname(__file__)
         model_path = os.path.join(package_path, 'resources', 'hand_landmarker.task')
         
-        # livestream insertion (do I need 'python' module in this like the image code?)
+        # livestream insertion 
         BaseOptions = mp.tasks.BaseOptions
         HandLandmarker = mp.tasks.vision.HandLandmarker
         HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
