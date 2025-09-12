@@ -30,6 +30,8 @@ class HandTrackerNode(Node):
         self.bridge = CvBridge()
         self.start_time = time.time() # FIXME does this actually match the ros time object so the first image is ~0s?
         self.image_size = 480 # resize input image to this size (max dimension) if larger in either dimension
+        self.processing_times = []
+        self.last_fps_report = time.time()
 
         # Create a HandLandmarker object.
         package_path = os.path.dirname(__file__)
@@ -48,6 +50,15 @@ class HandTrackerNode(Node):
         self.detector = HandLandmarker.create_from_options(options)
 
     def listener_callback(self, msg):
+        start_time = time.time()
+
+        # Check if we're falling behind
+        current_time = time.time()
+        msg_time = msg.header.stamp.sec + msg.header.stamp.nanosec/1e9
+        if current_time - msg_time > 0.1:  # 100ms behind
+            self.get_logger().warn("Dropping frame - processing too slow")
+            return
+        
         # load input frame and convert to mediapipe image format
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -71,6 +82,17 @@ class HandTrackerNode(Node):
         palm_open = self.is_palm_open(detection_result)
 
         self.bool_publisher.publish(Bool(data=palm_open))
+
+        # record processing time and report FPS
+        processing_time = time.time() - start_time
+        self.processing_times.append(processing_time)
+        
+        # Report FPS every 5 seconds
+        if time.time() - self.last_fps_report > 5.0:
+            avg_time = np.mean(self.processing_times[-50:])  # Last 50 frames
+            fps = 1.0 / avg_time if avg_time > 0 else 0
+            self.get_logger().info(f"Average FPS: {fps:.1f}, Processing time: {avg_time*1000:.1f}ms")
+            self.last_fps_report = time.time()
 
     def is_palm_open(self, detection_result):
         # keypoints are returned in (hand, keypoint, (x,y,z)) format
