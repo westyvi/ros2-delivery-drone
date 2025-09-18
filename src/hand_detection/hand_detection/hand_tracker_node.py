@@ -36,7 +36,7 @@ class HandTrackerNode(Node):
         # Create a HandLandmarker object.
         package_path = os.path.dirname(__file__)
         model_path = os.path.join(package_path, 'resources', 'hand_landmarker.task')
-        # model_path = os.path.join(package_path, 'resources', 'hand_landmarker_lite.task') # optional faster model
+        #model_path = os.path.join(package_path, 'resources', 'hand_landmarker_lite.task') # optional faster model FIXME doesn't work; does this exist?
 
         # livestream insertion 
         BaseOptions = mp.tasks.BaseOptions

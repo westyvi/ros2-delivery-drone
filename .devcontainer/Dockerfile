@@ -19,7 +19,7 @@ RUN python3 -m venv --system-site-packages /opt/venv && \
 # Set up the workspace
 WORKDIR /workspace
 
-# Source the ROS 2 setup file in every new shell
+# Source the ROS 2 setup file and venv in every new shell
 RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc && \
     echo "source /opt/venv/bin/activate" >> ~/.bashrc
 

@@ -11,14 +11,16 @@ Open the project in VSCode and reopen in container. It may prompt you for this, 
 
 ## Building and Running the Project
 
-Once in the container, to build the project:
-source /opt/ros/jazzy/setup.bash
-source /opt/venv/bin/activate
-colcon build
+# Once in the container, to build the project:
+colcon build --symlink-install
 source install/setup.bash
+ <xhost +local:docker> on host machine to grant gui permission 
 
-To run the hand detection node on your machine:
+# To run the hand detection node on your machine:
 ros2 run hand_detection video_capture_node
 ros2 run hand_detection hand_tracker_node.py
 ros2 run hand_detection video_display_node
+
+# fun things you may need
+chmod +x src/hand_detection/hand_detection/hand_tracker_node.py # only needed this building with symlink install
 ros2 topic echo /openPalm_detection 
