@@ -1,41 +1,27 @@
-
 {
   "name": "ROS2 Dev Container",
   "build": {
-      "dockerfile": "Dockerfile",
-      "context": ".."
+    "dockerfile": "Dockerfile",
+    "context": ".."
   },
   "runArgs": [
-        "--privileged",
-        "--device=/dev/video0:/dev/video0",
-        "--device=/dev/dri:/dev/dri",
-        "--network=host",
-        "-v", "/tmp/.X11-unix:/tmp/.X11-unix:rw",
-        "-e", "DISPLAY"
-    ],
-    "containerEnv": {
-        "DISPLAY": ":0"
-    },
-  //"runArgs": ["--network=host"],
+    "--privileged",
+    "--device=/dev/video0:/dev/video0",
+    "--network=host"
+  ],
   "customizations": {
-    "settings": {
-      "terminal.integrated.shell.linux": "/bin/bash"
-    },
-    "extensions": [
-      "ms-azuretools.vscode-docker",
-      //c++ tools
-      "ms-vscode.cpptools",
-      "twxs.cmake",
-      "ms-vscode.cmake-tools",
-      "twxs.cmake-language",
-      "twxs.cmake-tools",
-      //python tools
-      "ms-python.python",
-      "ms-python.vscode-pylance",
-      "ms-python.black-formatter",
-      //ros tools
-      "ms-iot.vscode-ros"
-    ],
+    "vscode": {
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+      },
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "ms-iot.vscode-ros"
+      ]
+    }
   },
   "remoteUser": "root"
 }

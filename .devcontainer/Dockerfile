@@ -1,27 +1,24 @@
-# Use the official ROS 2 Jazzy image as the base
 FROM ros:jazzy-perception
 
 SHELL ["/bin/bash", "-c"]
 
-# Install additional tools and dependencies
-RUN apt-get update && apt-get install -y \
-    python3-pip \
-    python3-venv \ 
-    x11-apps \
-    && rm -rf /var/lib/apt/lists/*
-    
-# Create a directory for the virtual environment and set it up
-# system site packages gives venv access to system (jazzy) packages necessary for ros2
-RUN python3 -m venv --system-site-packages /opt/venv && \ 
-    source /opt/venv/bin/activate && \
-    python3 -m pip install mediapipe numpy
-    
-# Set up the workspace
+RUN apt-get update && apt-get install -y python3-pip && rm -rf /var/lib/apt/lists/*
+
+# Copy package.xml for rosdep to resolve dependencies
+COPY src/hand_detection/package.xml /tmp/hand_detection/package.xml
+
+# Install dependencies: rosdep handles apt packages, pip handles mediapipe.
+# --skip-keys excludes pip deps from rosdep (we install them directly below).
+# --break-system-packages is safe in Docker (container is the system).
+# numpy<2 prevents pip from trying to replace apt's numpy (no RECORD file).
+RUN apt-get update && \
+    rosdep update && \
+    rosdep install --from-paths /tmp/hand_detection --ignore-src -r -y --skip-keys="python3-mediapipe-pip" && \
+    pip3 install --break-system-packages "numpy<2" mediapipe && \
+    rm -rf /var/lib/apt/lists/* /tmp/hand_detection
+
 WORKDIR /workspace
 
-# Source the ROS 2 setup file and venv in every new shell
-RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc && \
-    echo "source /opt/venv/bin/activate" >> ~/.bashrc
+RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 
-# Set the entrypoint
 ENTRYPOINT ["/bin/bash"]
