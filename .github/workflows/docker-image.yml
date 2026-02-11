@@ -5,8 +5,9 @@ on:
     branches: [ "main" ]
     tags: [ 'v*.*.*' ]
   workflow_dispatch:
+
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -24,7 +25,28 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      # Build amd64 image and load locally for testing
+      - name: Build image for testing
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ros2-drone-dev:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify colcon build
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace ros2-drone-dev:test -c "
+            source /opt/ros/jazzy/setup.bash &&
+            rm -rf build install log &&
+            colcon build --symlink-install
+          "
+
+      # Build both architectures and push to Docker Hub
+      - name: Build and push multi-arch
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -32,3 +54,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/ros2-delivery-drone:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
