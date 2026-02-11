@@ -26,6 +26,8 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Build amd64 image and load locally for testing
+      # Uses a separate cache scope so amd64 layers don't contaminate the
+      # multi-arch build (which would produce broken arm64 images).
       - name: Build image for testing
         uses: docker/build-push-action@v5
         with:
@@ -34,8 +36,8 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: ros2-drone-dev:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=amd64-test
+          cache-to: type=gha,mode=max,scope=amd64-test
 
       - name: Verify colcon build
         run: |
@@ -54,5 +56,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/ros2-delivery-drone:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=multiarch
+          cache-to: type=gha,mode=max,scope=multiarch
