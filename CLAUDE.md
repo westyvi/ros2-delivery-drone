@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ROS2 (Jazzy) delivery drone project targeting headless Raspberry Pi 5 deployment. Single package (`hand_detection`) with one Python node (`palm_detector_node`) that captures video, runs MediaPipe hand landmark detection, and publishes palm-open state for payload release.
+ROS2 (Jazzy) delivery drone project targeting headless Raspberry Pi 5 deployment. Three packages:
+
+- **`hand_detection`** — captures video, runs MediaPipe hand landmark detection, publishes palm-open state
+- **`servo_control`** — subscribes to Bool commands, drives a servo via GPIO PWM for payload release (auto-falls back to simulation when not on RPi)
+- **`drone_bringup`** — launch-only package that brings up the full system with topic remapping
 
 ## Build & Run
 
@@ -13,19 +17,32 @@ ROS2 (Jazzy) delivery drone project targeting headless Raspberry Pi 5 deployment
 colcon build --symlink-install
 source install/setup.bash
 
-# Run
+# Run individual nodes
 ros2 run hand_detection palm_detector_node
+ros2 run servo_control servo_control_node
 
 # Run with parameters
 ros2 run hand_detection palm_detector_node --ros-args \
   -p camera_id:=0 \
   -p publish_debug_frames:=true
 
-# Run via launch file
-ros2 launch hand_detection hand_detection_launch.py
+ros2 run servo_control servo_control_node --ros-args \
+  -p gpio_pin:=18 \
+  -p simulate:=true
 
-# Monitor detection output
+# Run full system (hand detection → servo control)
+ros2 launch drone_bringup full_system.launch.py
+
+# Run individual launch files (loads YAML config from drone_bringup)
+ros2 launch hand_detection hand_detection_launch.py
+ros2 launch servo_control servo_control_launch.py
+
+# Override config with a custom YAML file
+ros2 launch servo_control servo_control_launch.py params_file:=/path/to/custom.yaml
+
+# Monitor topics
 ros2 topic echo /openPalm_detection
+ros2 topic echo /servo/state
 ```
 
 ## Testing
@@ -35,11 +52,42 @@ colcon test
 colcon test-result --verbose
 ```
 
+### Manual servo simulation test (no camera or GPIO needed)
+
+```bash
+# Terminal 1: start servo in simulation mode
+ros2 run servo_control servo_control_node --ros-args -p simulate:=true
+
+# Terminal 2: send commands and observe state
+ros2 topic pub --once /servo/command std_msgs/msg/Bool '{data: true}'
+ros2 topic pub --once /servo/command std_msgs/msg/Bool '{data: false}'
+ros2 topic echo /servo/state
+```
+
+On non-RPi hosts, the node auto-falls back to simulation even without `-p simulate:=true`.
+
 ## Architecture
 
-**Package:** `hand_detection` — pure `ament_python` package in `src/hand_detection/`.
+```
+[hand_detection]                    [servo_control]
+  palm_detector_node                  servo_control_node
+  pub: /openPalm_detection (Bool) --> sub: /servo/command (Bool)
+                                      pub: /servo/state (Bool)
+                                      drives GPIO 18 via gpiozero
 
-**Single node: `palm_detector_node`**
+[drone_bringup]
+  full_system.launch.py
+  - launches both nodes
+  - remaps /servo/command → /openPalm_detection (temporary direct glue)
+```
+
+**Future:** A `drone_autonomy` state machine package will sit between detection and servo. Swap is a launch-file-only change — remove the remap, let `drone_autonomy` subscribe to `/openPalm_detection` and publish to `/servo/command`. Zero code changes to `hand_detection` or `servo_control`.
+
+### Package: `hand_detection`
+
+Pure `ament_python` package in `src/hand_detection/`.
+
+**Node: `palm_detector_node`**
 - Opens camera directly via OpenCV (`camera_id` parameter, default 0)
 - Timer-driven at configurable FPS (no inter-process image serialization)
 - Runs MediaPipe HandLandmarker in VIDEO mode
@@ -54,6 +102,35 @@ colcon test-result --verbose
 - Palm detection logic: checks if all 4 fingertip landmarks extend beyond palm base using distance ratio (cutoff: 0.5)
 - Image resizing: caps longest dimension at `image_size` (default 480px) before inference
 - FPS reporting every 5 seconds
+
+### Package: `servo_control`
+
+Pure `ament_python` package in `src/servo_control/`.
+
+**Node: `servo_control_node`**
+- Subscribes to `std_msgs/Bool` on `/servo/command` (True = open, False = close)
+- Publishes `std_msgs/Bool` on `/servo/state` (current state)
+- Drives servo via `gpiozero.Servo` on GPIO 18 (hardware PWM0, configurable)
+- Auto-detects RPi via `/sys/firmware/devicetree/base/model`; falls back to simulation mode if not on RPi or GPIO init fails
+
+**ROS Parameters:** `gpio_pin` (int, default 18), `open_angle` (float, default 90.0), `closed_angle` (float, default 0.0), `simulate` (bool, default False)
+
+**Key implementation details:**
+- Python source in `src/servo_control/servo_control/`
+- RPi auto-detection reads `/sys/firmware/devicetree/base/model`; three fallback paths: not RPi, file not found, GPIO init failure
+- Angle mapping: gpiozero expects -1 to 1, node maps angle via `(angle / 90.0) - 1.0`
+- Uses `gpiozero.pins.lgpio.LGPIOFactory` (required for RPi5 — default pigpio factory doesn't work)
+- Starts in CLOSED position; publishes state on every command
+
+### Package: `drone_bringup`
+
+Launch-only `ament_python` package in `src/drone_bringup/`. No nodes — just launch files and YAML config.
+
+**Config files** (single source of truth for all ROS parameters):
+- `config/hand_detection_params.yaml` — palm_detector_node parameters
+- `config/servo_control_params.yaml` — servo_control_node parameters
+
+Launch files and per-package launches load these YAML files. Node `declare_parameter()` defaults remain as last-resort fallbacks. Per-package launch files accept a `params_file` argument for override.
 
 ## Development Environment
 

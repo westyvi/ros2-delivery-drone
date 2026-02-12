@@ -9,17 +9,17 @@ import launch_ros.actions
 
 def generate_launch_description():
     default_params_file = os.path.join(
-        get_package_share_directory('drone_bringup'), 'config', 'hand_detection_params.yaml')
+        get_package_share_directory('drone_bringup'), 'config', 'servo_control_params.yaml')
 
     return launch.LaunchDescription([
         DeclareLaunchArgument(
             'params_file',
             default_value=default_params_file,
-            description='Path to the hand_detection parameter file'),
+            description='Path to the servo_control parameter file'),
 
         launch_ros.actions.Node(
-            package='hand_detection',
-            executable='palm_detector_node',
-            name='palm_detector_node',
+            package='servo_control',
+            executable='servo_control_node',
+            name='servo_control_node',
             parameters=[LaunchConfiguration('params_file')]),
     ])

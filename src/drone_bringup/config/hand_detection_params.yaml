@@ -1,0 +1,6 @@
+palm_detector_node:
+  ros__parameters:
+    camera_id: 0
+    publish_debug_frames: false
+    image_size: 480
+    capture_fps: 30

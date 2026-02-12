@@ -1,0 +1,6 @@
+servo_control_node:
+  ros__parameters:
+    gpio_pin: 18
+    open_angle: 90.0
+    closed_angle: 0.0
+    simulate: false
