@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Single node combining camera capture, hand landmark detection, and palm-open publishing."""
+"""Single node combining hand landmark detection and palm-open publishing.
+
+Subscribes to camera images from camera_ros, runs MediaPipe detection,
+and publishes palm-open state.
+"""
 
 import os
 import time
@@ -19,27 +23,25 @@ class PalmDetectorNode(Node):
         super().__init__('palm_detector_node')
 
         # Declare ROS parameters
-        self.declare_parameter('camera_id', 0)
+        self.declare_parameter('camera_topic', '/camera/image_raw')
         self.declare_parameter('publish_debug_frames', False)
         self.declare_parameter('image_size', 480)
-        self.declare_parameter('capture_fps', 30)
 
         # Read parameters
-        self.camera_id = self.get_parameter('camera_id').value
+        camera_topic = self.get_parameter('camera_topic').value
         self.publish_debug = self.get_parameter('publish_debug_frames').value
         self.image_size = self.get_parameter('image_size').value
-        capture_fps = self.get_parameter('capture_fps').value
 
         # Publishers
         self.bool_publisher = self.create_publisher(Bool, '/openPalm_detection', 10)
         if self.publish_debug:
             self.img_publisher = self.create_publisher(Image, '/hand_detection/debug_image', 10)
-            self.bridge = CvBridge()
 
-        # Open camera
-        self.cap = cv2.VideoCapture(self.camera_id)
-        if not self.cap.isOpened():
-            self.get_logger().error(f'Failed to open camera {self.camera_id}')
+        # CvBridge for converting ROS Image messages
+        self.bridge = CvBridge()
+
+        # Subscribe to camera images
+        self.create_subscription(Image, camera_topic, self.image_callback, 10)
 
         # MediaPipe HandLandmarker setup
         package_path = os.path.dirname(__file__)
@@ -59,22 +61,12 @@ class PalmDetectorNode(Node):
         self.processing_times = []
         self.last_fps_report = time.time()
 
-        # Timer-driven capture at configured FPS
-        timer_period = 1.0 / capture_fps
-        self.timer = self.create_timer(timer_period, self.timer_callback)
-
         self.get_logger().info(
-            f'Palm detector started: camera={self.camera_id}, '
-            f'fps={capture_fps}, debug_frames={self.publish_debug}')
+            f'Palm detector started: topic={camera_topic}, '
+            f'debug_frames={self.publish_debug}')
 
-    def timer_callback(self):
-        if not self.cap.isOpened():
-            return
-
-        ret, frame = self.cap.read()
-        if not ret:
-            self.get_logger().error('Failed to read frame from camera', throttle_duration_sec=5.0)
-            return
+    def image_callback(self, msg):
+        frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
 
         start_time = time.time()
 
@@ -160,11 +152,6 @@ class PalmDetectorNode(Node):
                         1, (88, 205, 54), 1, cv2.LINE_AA)
 
         return annotated_image
-
-    def destroy_node(self):
-        if self.cap.isOpened():
-            self.cap.release()
-        super().destroy_node()
 
 
 def main(args=None):

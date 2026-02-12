@@ -6,7 +6,7 @@ Delivery drone project built on ROS2 Jazzy. The drone navigates to GPS coordinat
 
 Three packages:
 
-- **`hand_detection`** — captures video, runs MediaPipe hand landmark detection, publishes palm-open state as a boolean
+- **`hand_detection`** — subscribes to camera images from `camera_ros`, runs MediaPipe hand landmark detection, publishes palm-open state as a boolean
 - **`servo_control`** — subscribes to Bool commands, drives a servo via GPIO PWM for payload release (auto-falls back to simulation when not on RPi)
 - **`drone_bringup`** — launch-only package that brings up the full system with topic remapping
 
@@ -15,15 +15,19 @@ Planned packages: `ardupilot_bridge`, `drone_autonomy`.
 ## Architecture
 
 ```
-[hand_detection]                    [servo_control]
-  palm_detector_node                  servo_control_node
-  pub: /openPalm_detection (Bool) --> sub: /servo/command (Bool)
-                                      pub: /servo/state (Bool)
-                                      drives GPIO 18 via gpiozero
+[camera_ros]                       [hand_detection]                    [servo_control]
+  camera_node                        palm_detector_node                  servo_control_node
+  pub: /camera/image_raw (Image) --> sub: /camera/image_raw (Image)
+                                     pub: /openPalm_detection (Bool) --> sub: /servo/command (Bool)
+                                                                         pub: /servo/state (Bool)
+                                                                         drives GPIO 18 via gpiozero
+
+[foxglove_bridge]
+  WebSocket server on port 8765 for remote viewing via Foxglove Studio
 
 [drone_bringup]
   full_system.launch.py
-  - launches both nodes
+  - launches camera_ros, palm_detector_node, servo_control_node, foxglove_bridge
   - remaps /servo/command -> /openPalm_detection (temporary direct glue)
 ```
 
@@ -31,18 +35,17 @@ Planned packages: `ardupilot_bridge`, `drone_autonomy`.
 
 ### hand_detection
 
-`palm_detector_node` handles the full vision pipeline:
-- Opens camera directly via OpenCV (no inter-process image serialization)
+`palm_detector_node` handles the vision pipeline:
+- Subscribes to camera images from `camera_ros` (no direct camera access)
 - Runs MediaPipe HandLandmarker to detect hand keypoints
 - Publishes `Bool` on `/openPalm_detection` (true when open palm detected)
 - Optionally publishes annotated `Image` on `/hand_detection/debug_image`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `camera_id` | int | 0 | Video device index (`/dev/video<N>`) |
+| `camera_topic` | string | /camera/image_raw | Topic to subscribe to for camera images |
 | `publish_debug_frames` | bool | false | Publish annotated image for remote viewing |
 | `image_size` | int | 480 | Max dimension for inference resize |
-| `capture_fps` | int | 30 | Timer-driven capture rate |
 
 ### servo_control
 
@@ -61,7 +64,7 @@ Planned packages: `ardupilot_bridge`, `drone_autonomy`.
 
 ### drone_bringup
 
-Launch-only package. `full_system.launch.py` starts both nodes and remaps `/servo/command` to `/openPalm_detection` so palm detections directly drive the servo.
+Launch-only package. `full_system.launch.py` starts camera_ros, palm_detector_node, servo_control_node, and foxglove_bridge. Remaps `/servo/command` to `/openPalm_detection` so palm detections directly drive the servo.
 
 YAML config files in `config/` are the single source of truth for all ROS parameters. Per-package launch files load these by default and accept a `params_file` argument for override.
 
@@ -77,11 +80,14 @@ Open the project in VSCode and reopen in container (Ctrl+Shift+P > "Reopen in Co
 
 Build and run the Docker container on the Pi:
 ```bash
-docker build -f .devcontainer/Dockerfile -t ros2-drone .
-docker run --privileged --device=/dev/video0 --network=host -v $(pwd):/workspace -it ros2-drone
+docker build --pull -f .devcontainer/Dockerfile -t ros2-drone .
+docker run --privileged --network=host -v ~/ros2-delivery-drone:/workspace -it ros2-drone
 ```
 
-For RPi Camera Module, you may need: `sudo modprobe bcm2835-v4l2`
+Verify camera before running:
+```bash
+rpicam-hello --list-cameras  # on Pi host, outside Docker
+```
 
 ## Building and Running
 
@@ -90,7 +96,7 @@ For RPi Camera Module, you may need: `sudo modprobe bcm2835-v4l2`
 colcon build --symlink-install
 source install/setup.bash
 
-# Run full system (hand detection -> servo control)
+# Run full system (camera + hand detection + servo control + foxglove bridge)
 ros2 launch drone_bringup full_system.launch.py
 
 # Or run individual nodes
@@ -99,7 +105,7 @@ ros2 run servo_control servo_control_node
 
 # Run with parameters
 ros2 run hand_detection palm_detector_node --ros-args \
-  -p camera_id:=0 \
+  -p camera_topic:=/camera/image_raw \
   -p publish_debug_frames:=true
 
 ros2 run servo_control servo_control_node --ros-args \
@@ -166,15 +172,12 @@ ros2 launch drone_bringup full_system.launch.py
 
 The node auto-detects the RPi and uses hardware GPIO. If GPIO initialization fails for any reason, it automatically falls back to simulation mode.
 
-## Remote Topic Viewing
+## Remote Viewing via Foxglove
 
-From a dev machine with ROS2 installed on the same network (same `ROS_DOMAIN_ID`, default 0):
+The launch files include a Foxglove Bridge node (WebSocket on port 8765). This works through NAT (WSL2, WiFi AP) without any DDS configuration.
 
-```bash
-# Text topics work over any connection
-ros2 topic echo /openPalm_detection
-ros2 topic echo /servo/state
-
-# Debug image viewing (enable publish_debug_frames on the Pi first)
-rqt_image_view /hand_detection/debug_image
-```
+**Setup:**
+1. Install [Foxglove Studio](https://foxglove.dev/download) on your dev machine
+2. Connect to `ws://<pi-ip>:8765` (e.g., `ws://10.0.0.193:8765`)
+3. Add an Image panel and select `/hand_detection/debug_image` to see the annotated camera feed
+4. Add an Indicator panel and select `/openPalm_detection` to see palm detection state

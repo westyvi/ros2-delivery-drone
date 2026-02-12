@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ROS2 (Jazzy) delivery drone project targeting headless Raspberry Pi 5 deployment. Three packages:
 
-- **`hand_detection`** — captures video, runs MediaPipe hand landmark detection, publishes palm-open state
+- **`hand_detection`** — subscribes to camera images, runs MediaPipe hand landmark detection, publishes palm-open state
 - **`servo_control`** — subscribes to Bool commands, drives a servo via GPIO PWM for payload release (auto-falls back to simulation when not on RPi)
 - **`drone_bringup`** — launch-only package that brings up the full system with topic remapping
 
@@ -23,14 +23,14 @@ ros2 run servo_control servo_control_node
 
 # Run with parameters
 ros2 run hand_detection palm_detector_node --ros-args \
-  -p camera_id:=0 \
+  -p camera_topic:=/camera/image_raw \
   -p publish_debug_frames:=true
 
 ros2 run servo_control servo_control_node --ros-args \
   -p gpio_pin:=18 \
   -p simulate:=true
 
-# Run full system (hand detection → servo control)
+# Run full system (camera + hand detection + servo control + foxglove bridge)
 ros2 launch drone_bringup full_system.launch.py
 
 # Run individual launch files (loads YAML config from drone_bringup)
@@ -69,16 +69,20 @@ On non-RPi hosts, the node auto-falls back to simulation even without `-p simula
 ## Architecture
 
 ```
-[hand_detection]                    [servo_control]
-  palm_detector_node                  servo_control_node
-  pub: /openPalm_detection (Bool) --> sub: /servo/command (Bool)
-                                      pub: /servo/state (Bool)
-                                      drives GPIO 18 via gpiozero
+[camera_ros]                       [hand_detection]                    [servo_control]
+  camera_node                        palm_detector_node                  servo_control_node
+  pub: /camera/image_raw (Image) --> sub: /camera/image_raw (Image)
+                                     pub: /openPalm_detection (Bool) --> sub: /servo/command (Bool)
+                                                                         pub: /servo/state (Bool)
+                                                                         drives GPIO 18 via gpiozero
+
+[foxglove_bridge]
+  WebSocket server on port 8765 for remote viewing via Foxglove Studio
 
 [drone_bringup]
   full_system.launch.py
-  - launches both nodes
-  - remaps /servo/command → /openPalm_detection (temporary direct glue)
+  - launches camera_ros, palm_detector_node, servo_control_node, foxglove_bridge
+  - remaps /servo/command -> /openPalm_detection (temporary direct glue)
 ```
 
 **Future:** A `drone_autonomy` state machine package will sit between detection and servo. Swap is a launch-file-only change — remove the remap, let `drone_autonomy` subscribe to `/openPalm_detection` and publish to `/servo/command`. Zero code changes to `hand_detection` or `servo_control`.
@@ -88,13 +92,12 @@ On non-RPi hosts, the node auto-falls back to simulation even without `-p simula
 Pure `ament_python` package in `src/hand_detection/`.
 
 **Node: `palm_detector_node`**
-- Opens camera directly via OpenCV (`camera_id` parameter, default 0)
-- Timer-driven at configurable FPS (no inter-process image serialization)
+- Subscribes to `sensor_msgs/Image` from `camera_ros` via configurable topic
 - Runs MediaPipe HandLandmarker in VIDEO mode
 - Publishes `std_msgs/Bool` on `/openPalm_detection` (always)
 - Publishes `sensor_msgs/Image` on `/hand_detection/debug_image` (only when `publish_debug_frames=true`)
 
-**ROS Parameters:** `camera_id` (int), `publish_debug_frames` (bool), `image_size` (int), `capture_fps` (int)
+**ROS Parameters:** `camera_topic` (string), `publish_debug_frames` (bool), `image_size` (int)
 
 **Key implementation details:**
 - Python source in `src/hand_detection/hand_detection/`
@@ -127,14 +130,18 @@ Pure `ament_python` package in `src/servo_control/`.
 Launch-only `ament_python` package in `src/drone_bringup/`. No nodes — just launch files and YAML config.
 
 **Config files** (single source of truth for all ROS parameters):
-- `config/hand_detection_params.yaml` — palm_detector_node parameters
+- `config/hand_detection_params.yaml` — camera_ros and palm_detector_node parameters
 - `config/servo_control_params.yaml` — servo_control_node parameters
 
 Launch files and per-package launches load these YAML files. Node `declare_parameter()` defaults remain as last-resort fallbacks. Per-package launch files accept a `params_file` argument for override.
 
 ## Development Environment
 
-Target platform is RPi5 running headless, developed via SSH. Docker container built on `ros:jazzy-perception` with mediapipe pip-installed. The devcontainer uses `--privileged` + `--device=/dev/video0` + `--network=host`.
+Target platform is RPi5 running headless, developed via SSH. Docker container built on `ros:jazzy-perception` with mediapipe pip-installed. The devcontainer uses `--privileged` + `--network=host`.
+
+## Remote Viewing
+
+Foxglove Bridge runs on port 8765 inside the container. Connect from any machine using Foxglove Studio (`ws://<pi-ip>:8765`). Works through NAT (WSL2, WiFi AP) without DDS configuration.
 
 ## CI/CD
 

@@ -12,6 +12,13 @@ def generate_launch_description():
     servo_control_config = os.path.join(bringup_dir, 'config', 'servo_control_params.yaml')
 
     return launch.LaunchDescription([
+        # Camera driver (camera_ros)
+        launch_ros.actions.Node(
+            package='camera_ros',
+            executable='camera_node',
+            name='camera',
+            parameters=[hand_detection_config]),
+
         # Palm detection node
         launch_ros.actions.Node(
             package='hand_detection',
@@ -31,4 +38,11 @@ def generate_launch_description():
             remappings=[
                 ('/servo/command', '/openPalm_detection'),
             ]),
+
+        # Remote viewing bridge
+        launch_ros.actions.Node(
+            package='foxglove_bridge',
+            executable='foxglove_bridge',
+            name='foxglove_bridge',
+            parameters=[{'port': 8765}]),
     ])

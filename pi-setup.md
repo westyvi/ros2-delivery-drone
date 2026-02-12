@@ -86,19 +86,13 @@ This takes ~15-20 minutes on the Pi (large base image + pip install mediapipe fo
 
 ## 7. Verify Camera
 
-The RPi Camera Module (CSI) appears under the `rp1-cfe` platform device:
+The RPi Camera Module (CSI) appears under the `rp1-cfe` platform device. Verify on the Pi host (outside Docker):
 
 ```bash
-v4l2-ctl --list-devices
+rpicam-hello --list-cameras
 ```
 
-Key output:
-```
-rp1-cfe (platform:1f00110000.csi):
-    /dev/video0  <-- main capture device
-    /dev/video1
-    ...
-```
+You should see your camera listed. The `camera_ros` node inside the container will access the camera via libcamera.
 
 ## 8. Run the Container
 
@@ -115,20 +109,20 @@ cd /workspace
 colcon build --symlink-install
 source install/setup.bash
 
-# Run full system (parameters loaded from YAML config files in drone_bringup/config/)
+# Run full system (camera_ros + hand detection + servo + foxglove bridge)
 ros2 launch drone_bringup full_system.launch.py
 
-# Or run individual nodes with inline parameter overrides
-ros2 run hand_detection palm_detector_node --ros-args \
-  -p camera_id:=0 \
-  -p publish_debug_frames:=true
+# Or run just hand detection with camera (loads YAML config from drone_bringup)
+ros2 launch hand_detection hand_detection_launch.py
 ```
 
 ## 9. View Debug Images from Dev Machine
 
-From a machine with ROS2 on the same network (same `ROS_DOMAIN_ID`, default 0):
+The launch files include a Foxglove Bridge node (WebSocket on port 8765). This works through NAT (WSL2, WiFi AP) without any DDS configuration.
 
-```bash
-ros2 topic list
-ros2 run rqt_image_view rqt_image_view /hand_detection/debug_image
-```
+1. Install [Foxglove Studio](https://foxglove.dev/download) on your dev machine
+2. Open Foxglove Studio and connect to `ws://10.0.0.193:8765`
+3. Add an Image panel and select `/hand_detection/debug_image` to see the annotated camera feed
+4. Add an Indicator panel and select `/openPalm_detection` to see palm detection state
+
+> **Note:** Make sure `publish_debug_frames` is set to `true` in the YAML config or via parameter override to see the debug image topic.

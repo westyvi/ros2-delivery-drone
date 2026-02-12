@@ -1,6 +1,11 @@
+camera:
+  ros__parameters:
+    camera: 0
+    width: 640
+    height: 480
+
 palm_detector_node:
   ros__parameters:
-    camera_id: 0
+    camera_topic: /camera/image_raw
     publish_debug_frames: false
     image_size: 480
-    capture_fps: 30
