@@ -81,7 +81,7 @@ Open the project in VSCode and reopen in container (Ctrl+Shift+P > "Reopen in Co
 Build and run the Docker container on the Pi:
 ```bash
 docker build --pull -f .devcontainer/Dockerfile -t ros2-drone .
-docker run --privileged --network=host -v ~/ros2-delivery-drone:/workspace -it ros2-drone
+docker run --privileged --network=host -v /run/udev:/run/udev:ro -v ~/ros2-delivery-drone:/workspace -it ros2-drone
 ```
 
 Verify camera before running:

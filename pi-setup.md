@@ -98,9 +98,15 @@ You should see your camera listed. The `camera_ros` node inside the container wi
 
 ```bash
 docker run --privileged --network=host \
+  -v /run/udev:/run/udev:ro \
   -v ~/ros2-delivery-drone:/workspace \
   -it ros2-drone
 ```
+
+> **Note:** The `-v /run/udev:/run/udev:ro` mount is required for libcamera to enumerate
+> camera devices inside the container. The Dockerfile already bakes in the RPi-patched
+> libcamera (`v0.6.0+rpt`) to replace the upstream `ros-jazzy-libcamera` which lacks PiSP
+> support — no additional libcamera mounts are needed.
 
 Inside the container:
 
