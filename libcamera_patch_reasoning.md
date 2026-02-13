@@ -95,3 +95,29 @@ It's the intersection of three ecosystems that don't coordinate:
 3. **Docker** isolates the container from the host, so you can't just use the host's libraries
 
 If RPi's PiSP patches were upstreamed (merged into the official libcamera), the ROS package would work out of the box. But hardware vendors often maintain their own forks, and it takes time for patches to flow upstream. Until then, this overlay approach bridges the gap.
+
+## Alternatives considered
+
+### 1. Use `v4l2_camera` instead of `camera_ros` (bypass libcamera)
+
+**Not viable.** On RPi5, the V4L2 device nodes only output raw Bayer data — the PiSP ISP that converts it to RGB is only accessible through libcamera. There's no `bcm2835-v4l2` legacy module on RPi5 (deprecated, only worked on RPi4 and older). Using `libcamerify` (V4L2 compatibility shim) still requires the RPi libcamera fork internally.
+
+### 2. Switch to a Raspbian/Debian base Docker image
+
+**Doesn't help.** Even on Raspbian, `ros-jazzy-libcamera` installs upstream libcamera to `/opt/ros/jazzy/lib/`, and `camera_ros` links against that path via `LD_LIBRARY_PATH`. You'd still need the overlay. Meanwhile you'd lose Tier 1 ROS2 support, prebuilt packages, and depend on small community repos for ROS2 on Debian.
+
+### 3. Add RPi apt repo and use `apt-get install`
+
+**Broken for our version.** The RPi apt repo's current Packages index only lists `libcamera-ipa` v0.7.0, but `libcamera0.6` requires `libcamera-ipa = 0.6.0+rpt` (exact match). So `apt-get install libcamera0.6` fails with an unresolvable dependency. Even if it could install, the packages go to `/usr/lib/` not `/opt/ros/jazzy/lib/`, so you'd still need the overlay step.
+
+### 4. Build RPi libcamera from source in the Dockerfile
+
+**Viable fallback.** This is what [se1exin/camera_ros-in-docker-rpi5](https://github.com/se1exin/camera_ros-in-docker-rpi5) does. It eliminates the SONAME coupling risk since `camera_ros` is also built from source against the same library. Downsides: ~10-20 min build time on RPi5, larger image (build tools remain), more complex Dockerfile. This is the right fallback if our .deb overlay breaks due to a SONAME bump (e.g., ROS moves to libcamera 0.7).
+
+### Why we chose the .deb overlay approach
+
+- **Fast** (~3s download + extract vs 10-20 min source build)
+- **Small** (no build tools left in image)
+- **Stable** — the pinned .deb URL points to files in the RPi archive pool, which are never deleted even after leaving the Packages index
+- **Clean removal path** — when RPi's PiSP patches land upstream, delete the `RUN` block and the `ENV` lines. The `if [ arm64 ]` guard means amd64 CI is unaffected either way
+- **Known fragility** — if ROS bumps `ros-jazzy-libcamera` to a new SONAME (e.g., 0.7), the overlay breaks and we'd need to update `RPI_LIBCAMERA_VERSION` or switch to the source build fallback (option 4)

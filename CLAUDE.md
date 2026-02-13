@@ -139,6 +139,8 @@ Launch files and per-package launches load these YAML files. Node `declare_param
 
 Target platform is RPi5 running headless, developed via SSH. Docker container built on `ros:jazzy-perception` with mediapipe pip-installed. The devcontainer uses `--privileged` + `--network=host`.
 
+**RPi camera support:** The Dockerfile overlays the RPi-patched `libcamera` (v0.6.0+rpt) on arm64 builds to replace the upstream `ros-jazzy-libcamera` which lacks PiSP support. Runtime requires `-v /run/udev:/run/udev:ro` for camera enumeration. See `libcamera_patch_reasoning.md` for full details.
+
 ## Remote Viewing
 
 Foxglove Bridge runs on port 8765 inside the container. Connect from any machine using Foxglove Studio (`ws://<pi-ip>:8765`). Works through NAT (WSL2, WiFi AP) without DDS configuration.
